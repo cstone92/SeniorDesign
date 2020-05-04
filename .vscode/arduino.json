@@ -1,6 +1,6 @@
 {
     "board": "arduino:avr:mega",
     "configuration": "cpu=atmega2560",
-    "sketch": "everythingStoppedWorking\\everythingStoppedWorking.ino",
-    "port": "COM5"
+    "sketch": "motor_control\\motor_control.ino",
+    "port": "COM12"
 }
