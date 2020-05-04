@@ -3,4 +3,5 @@
     "configuration": "cpu=atmega2560",
     "sketch": "motor_control\\motor_control.ino",
     "port": "COM12"
+    
 }

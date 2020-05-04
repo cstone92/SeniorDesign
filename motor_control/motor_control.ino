@@ -89,14 +89,14 @@ uint8_t state = 0;
 // Stepper Setup
 AccelStepper stepperX(AccelStepper::DRIVER, stepXPin, dirXPin);  //create instance of right stepper motor object (2 driver pins, low to high transition step pin 52, direction input pin 53 (high means forward)
 //AccelStepper stepperY(AccelStepper::DRIVER, stepYPin, dirYPin);   //create instance of right stepper motor object (2 driver pins, low to high transition step pin 52, direction input pin 53 (high means forward)
-c1
+
 void setup() {
   // put your setup code here, to run once:
   // Added to improve debugging capability
   Serial.begin(9600);  // open the serial port at 9600 baud
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  uint8_t prescalerMode = 0x05;
+  uint8_t prescalerMode = 0x00;
   uint8_t sec_per_rev = 30;  //you pick this
   uint32_t clock = 16000000;
   uint16_t prescaler = 64;  //determined from prescalerMode
@@ -139,7 +139,7 @@ void setup() {
   // OCR2A holds the top value of our counter, so it acts as a divisor to the
   // clock. When our counter reaches this, it resets. Counting starts from 0.
   // Thus 63 equals to 64 divs.
-  int top = (clock * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
+  //int top = (clock * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
   //Serial.println(top,DEC);
   OCR2A = 3;
   // This is the duty cycle. Think of it as the last value of the counter our
@@ -156,15 +156,15 @@ void setup() {
   pinMode(stepperEnable, OUTPUT);  //sets pin as output
   //pinMode(Pul, OUTPUT);
   //pinMode(Dir, OUTPUT);
-  //digitalWrite(stepperEnable, stepperEnFalse);  //turns off the stepper motor
+  digitalWrite(stepperEnable, stepperEnFalse);  //turns off the stepper motor
 
   // Stepper initialization
-  //   stepperX.setMaxSpeed(speedD);      //set the maximum speed for the right stepper
-  //   stepperX.setAcceleration(accelD);  //set the initial acceleration for the right stepper
+     stepperX.setMaxSpeed(speedD);      //set the maximum speed for the right stepper
+     stepperX.setAcceleration(accelD);  //set the initial acceleration for the right stepper
   //   stepperY.setMaxSpeed(speedD);      //set the maximum speed for the right stepper
   //   stepperY.setAcceleration(accelD);  //set the initial acceleration for the right stepper
 
-  //   digitalWrite(stepperEnable, stepperEnTrue);  //turns on the stepper motor driver
+     digitalWrite(stepperEnable, stepperEnTrue);  //turns on the stepper motor driver
 
   //  Timer1.initialize(timer_int);
   //  Timer1.attachInterrupt(nextStep);

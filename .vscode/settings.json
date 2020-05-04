@@ -1,4 +1,6 @@
 {
+    //"code-runner.runInTerminal": true;
+
     "C_Cpp.errorSquiggles": "Disabled",
     "cSpell.words": [
         "TCCR"
