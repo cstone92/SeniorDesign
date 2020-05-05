@@ -67,31 +67,40 @@
 #define dirXPin 5   //right stepper motor direction pin
 #define stepZPin 4
 #define dirZPin 7
+#define steppersEnable 8  //stepper enable pin on stepStick
+
 #define Pul 9
-// #define Dir 9
-#define stepperEnable 8      //stepper enable pin on stepStick
+#define Dir 12
+#define accurateStepperEnable 13
+
 #define stepperEnTrue false  //variable for enabling stepper motor
 #define stepperEnFalse true  //variable for disabling stepper motor
 
 // // Stepper Library Default Speeds
-#define speedD 1000  // default speed
-#define accelD 300   // default acceleration
+//#define speedD 1000  // default speed
 
-// boolean pulse = 1;
-// boolean accurate = 0;
+#define accel_default 300  // default acceleration
+
+boolean pulse = 1;
+
+uint8_t State = 0;
+uint8_t Motor = 0;
+int32_t Steps = 0;
+uint16_t Velocity = 0;
+
 boolean moving = 0;
+boolean flag = false;
 
-uint8_t state = 0;
+//uint8_t state = 0;
 
-  uint8_t prescalerMode = 0x05;
-  uint8_t sec_per_rev = 30;  //you pick this
+uint8_t prescalerMode = 0x05;
+uint8_t sec_per_rev = 30;  //you pick this
 
-// unsigned int count = 0;
-// unsigned int maxCount = 500;
+int32_t motor3_count = 0;
 
 // Stepper Setup
 AccelStepper stepperX(AccelStepper::DRIVER, stepXPin, dirXPin);  //create instance of right stepper motor object (2 driver pins, low to high transition step pin 52, direction input pin 53 (high means forward)
-AccelStepper stepperZ(AccelStepper::DRIVER, stepZPin, dirZPin);   //create instance of right stepper motor object (2 driver pins, low to high transition step pin 52, direction input pin 53 (high means forward)
+AccelStepper stepperZ(AccelStepper::DRIVER, stepZPin, dirZPin);  //create instance of right stepper motor object (2 driver pins, low to high transition step pin 52, direction input pin 53 (high means forward)
 
 void setup() {
   // put your setup code here, to run once:
@@ -103,17 +112,22 @@ void setup() {
   uint16_t prescaler = 64;  //determined from prescalerMode
   uint8_t gearRatio = 14;
   uint16_t step_per_rev = 40000;  // determined by SW1-4 on closed loop stepper driver
+  int top = (clockRate * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
+  //Serial.println(top,DEC);
 
   //going to hopfully use pins 9 (TCCR2B, OC2B) and 10 (TCCR2A, OC2A)
   pinMode(Pul, OUTPUT);  //output pin for OCR2B, this is Arduino pin number
   pinMode(10, OUTPUT);   //output pin for OCR2A, controlling the top limit
 
-  // In the next line of code, we:
-  // 1. Set the compare output mode to clear OC2A and OC2B on compare match.
-  //    To achieve this, we set bits COM2A1 and COM2B1 to high.
-  // 2. Set the waveform generation mode to fast PWM (mode 3 in datasheet).
-  //    To achieve this, we set bits WGM21 and WGM20 to high.
-  TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+  pinMode(Dir, OUTPUT);                   //output pin for controlling the direction of the accurate stepper motor
+  pinMode(accurateStepperEnable, OUTPUT)  //output pi for enabling the accurate stepper motor
+
+      // In the next line of code, we:
+      // 1. Set the compare output mode to clear OC2A and OC2B on compare match.
+      //    To achieve this, we set bits COM2A1 and COM2B1 to high.
+      // 2. Set the waveform generation mode to fast PWM (mode 3 in datasheet).
+      //    To achieve this, we set bits WGM21 and WGM20 to high.
+      TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
 
   // In the next line of code, we:
   // 1. Set the waveform generation mode to fast PWM mode 7 —reset counter on
@@ -135,13 +149,11 @@ void setup() {
                      //now that CS02, CS01, CS00  are clear, we write on them a new value:
   //TCCR2B = _BV(WGM22) | _BV(CS21) | _BV(CS20);
   TCCR2B = _BV(WGM22);
-  TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
+  //TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
 
   // OCR2A holds the top value of our counter, so it acts as a divisor to the
   // clock. When our counter reaches this, it resets. Counting starts from 0.
   // Thus 63 equals to 64 divs.
-  //int top = (clockRate * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
-  //Serial.println(top,DEC);
   OCR2A = 3;
   // This is the duty cycle. Think of it as the last value of the counter our
   // output will remain high for. Can't be greater than OCR2A of course. A
@@ -150,144 +162,149 @@ void setup() {
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Pin initialization
-  pinMode(stepXPin, OUTPUT);  //sets pin as output
-  pinMode(dirXPin, OUTPUT);   //sets pin as output
-  pinMode(stepZPin, OUTPUT);       //sets pin as output
-  pinMode(dirZPin, OUTPUT);        //sets pin as output
-  pinMode(stepperEnable, OUTPUT);  //sets pin as output
-  //pinMode(Pul, OUTPUT);
-  //pinMode(Dir, OUTPUT);
-  digitalWrite(stepperEnable, stepperEnFalse);  //turns off the stepper motor
+  pinMode(stepXPin, OUTPUT);        //sets pin as output
+  pinMode(dirXPin, OUTPUT);         //sets pin as output
+  pinMode(stepZPin, OUTPUT);        //sets pin as output
+  pinMode(dirZPin, OUTPUT);         //sets pin as output
+  pinMode(steppersEnable, OUTPUT);  //sets pin as output
+
+  digitalWrite(steppersEnable, stepperEnFalse);  //turns off the stepper motor
 
   // Stepper initialization
-     stepperX.setMaxSpeed(speedD);      //set the maximum speed for the right stepper
-     stepperX.setAcceleration(accelD);  //set the initial acceleration for the right stepper
-     stepperZ.setMaxSpeed(speedD);      //set the maximum speed for the right stepper
-     stepperZ.setAcceleration(accelD);  //set the initial acceleration for the right stepper
+  stepperX.setMaxSpeed(Velocity);           //set the maximum speed for the right stepper
+  stepperX.setAcceleration(accel_default);  //set the initial acceleration for the right stepper
+  stepperZ.setMaxSpeed(Velocity);           //set the maximum speed for the right stepper
+  stepperZ.setAcceleration(accel_default);  //set the initial acceleration for the right stepper
 
-     digitalWrite(stepperEnable, stepperEnTrue);  //turns on the stepper motor driver
+  digitalWrite(accurateStepperEnable, stepperEnTrue);  //turns on the closed loop stepper motor driver
+  digitalWrite(Dir, HIGH);                             //default direction
 
-  //  Timer1.initialize(timer_int);
-  //  Timer1.attachInterrupt(nextStep);
-  //  Timer1.stop();
+  digitalWrite(steppersEnable, stepperEnTrue);  //turns on the stepper motor driver
 }
 
 void loop() {
   // put your main code here, to run repeatedly:{
 
-  if (Serial.available() > 0) {
-    if (Serial.peek() == 'c') {
-      Serial.read();
-      state = Serial.parseInt();
-      moving = false;
-      //digitalWrite(LED_BUILTIN, state);
+  if (flag) {
+    if (State == 3) {
+      TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
     }
-    while (Serial.available() > 0) {
-      Serial.read();
+    if (State == 0) {
+      digitalWrite(steppersEnable, stepperEnTrue);
+      digitalWrite(accurateStepperEnable, stepperEnTrue);
     }
+    switch (Motor) {
+      case 0:
+        digitalWrite(steppersEnable, stepperEnFalse);
+        digitalWrite(accurateStepperEnable, stepperEnFalse);
+        moving = false;
+        break;
+      case 1:
+        stepperX.move(Steps);
+        stepperX.setMaxSpeed(Velocity);
+        moving = true;
+        break;
+      case 2:
+        stepperZ.move(Steps);
+        stepperZ.setMaxSpeed(Velocity);
+        moving = true;
+        break;
+      case 3:
+        if (Steps >= 0) {
+          digitalWrite(Dir, LOW)  // default direction
+        } else {
+          digitalWrite(Dir, HIGH)  // switch direction
+        }
+        TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
+        motor3_count = 0;
+        pulse = digitalRead(Pul);
+        Steps = abs(Steps);
+        moving = true;
+      default:
+        Serial.println("Catch-all#1");
+        moving = false;
+        break;
+    }
+    State = Motor;
+    flag = false;
   }
 
-  if (~(moving)) {
-    switch (state) {
+  if (moving) {
+    switch (State) {
       case 1:
-        forward(1, 2000, speedD);
+        if (!stepX.run()) {
+          moving = false;
+          Serial.println("Ready for Comand");
+        }
         break;
-       case 2:
-         forward(2, 2000, speedD);
-         break;
+      case 2:
+        if (!stepZ.run()) {
+          moving = false;
+          Serial.println("Ready for Comand");
+        }
+        break;
       case 3:
-      TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
-      Serial.println(_BV(TCCR2B));
-      moving = false;
-      break;
-            case 4:
-      TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
-      Serial.println(_BV(TCCR2B));
-      moving = true;
-      break;
+        if (digitalRead(Pul) != pulse) {
+          pulse = !(pulse);
+          motor3_count++;
+        }
+        if (motor3_count >= Steps) {
+          TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
+          moving = false;
+          Serial.println("Ready for Comand");
+        }
+        break;
       default:
-        Serial.println("Catch-all");
-        delay(500);
+        Serial.println("Catch-all#2");
         break;
     }
-  } else {
-    // if (accurate) {
-    //   digitalWrite(Dir, HIGH);
-    //   if (count > maxCount) {
-    //     //Timer1.stop();
-    //     accurate = false;
-    //     count = 0;
-    //     moving = 0;
-    //   }
-    // }
   }
 }
 
 /*
-  forward has two inputs: an integer for the distance to travel in inches, and an
-  integer for the speed of travel.
-
-  dist is a value from -1000 to 1000 in inches
-  spd is a value from 100 to 1000 in steps/sec
-
-  The function then sets the desired position using stepper.move(dist) on both inputs.
-  It then runs a while loop that waits until both steppers complete their movement that
-  calls left.run() and right.run() each loop. This allows us to improve precision by
-  using the acceleration option in the stepper library to eliminate skipped steps and
-  wheel skid during the start and end of movement.
+  SerialEvent occurs whenever a new data comes in the hardware serial RX. This
+  routine is run between each time loop() runs, so using delay inside loop can
+  delay response. Multiple bytes of data may be available.
 */
-void forward(int motor, int dist, int spd) {
-  switch (motor) {
-    case 1:
-      stepperX.move(dist);
-      stepperX.setMaxSpeed(spd);
-      runXToStop();  //move to the desired position
-      break;
-     case 2:
-       stepperZ.move(dist);
-       stepperZ.setMaxSpeed(spd);
-       runZToStop();  //move to the desired position
-       break;
-    default:
-      break;
+void serialEvent() {
+  while (Serial.available()) {
+    if (Serial.peek() == 'm') {
+      Serial.read();
+      Motor = Serial.parseInt();
+    } else if (Serial.peek() == 's') {
+      Serial.read();
+      Steps = Serial.parseInt();
+    } else if (Serial.peek() == 'v') {
+      Serial.read();
+      Velocity = Serial.parseInt();
+    } else {
+      Serial.read()
+    }
   }
+  flag = true;
 }
 
 /*
   runToStop runs both the right and left stepper until they stop moving
 */
-void runXToStop(void) {
-  boolean runX = 1;  //state variabels
-  moving = 1;
-  while (runX) {            //until both stop
-    if (!stepperX.run()) {  //step the right stepper, if it is done moving set runR = 0
-      runX = 0;             //right done moving
-    }
-  }
-  moving = 0;
-}
+// void runXToStop(void) {
+//   boolean runX = 1;  //state variabels
+//   moving = 1;
+//   while (runX && !(Serial.available())) {  //until both stop
+//     if (!stepperX.run()) {                 //step the right stepper, if it is done moving set runR = 0
+//       runX = 0;                            //right done moving
+//     }
+//   }
+//   moving = 0;
+// }
 
- void runZToStop(void) {
-   boolean runZ = 1;  //state variables
-   moving = 1;
-   while (runZ) {            //until both stop
-     if (!stepperZ.run()) {  //step the left stepper, if it is done moving set runL = 0
-       runZ = 0;             //left done moving
-     }
-   }
-   moving = 0;
- }
-
-// void nextStep() {
-//   pulse = !(pulse);
-//   digitalWrite(Pul, pulse);
-//   count++;
-//delay(1);
-
-//pulse = 1;
-//digitalWrite(Pul, pulse);
-//count++;
-//delay(1);
-//pulse = 0;
-//degitalWrite(Pul, pulse);
-//}
+// void runZToStop(void) {
+//   boolean runZ = 1;  //state variables
+//   moving = 1;
+//   while (runZ && !(Serial.available())) {  //until both stop
+//     if (!stepperZ.run()) {                 //step the left stepper, if it is done moving set runL = 0
+//       runZ = 0;                            //left done moving
+//     }
+//   }
+//   moving = 0;
+// }

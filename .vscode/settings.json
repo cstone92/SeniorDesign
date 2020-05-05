@@ -1,8 +1,10 @@
 {
     //"code-runner.runInTerminal": true;
 
-    "C_Cpp.errorSquiggles": "Disabled",
+    //"C_Cpp.errorSquiggles": "Disabled",
     "cSpell.words": [
+        "OCR2A",
+        "OCRA",
         "TCCR"
     ]
 }
