@@ -70,8 +70,8 @@
 #define steppersEnable 8  //stepper enable pin on stepStick
 
 #define Pul 9
-#define Dir 12
-#define accurateStepperEnable 13
+#define Dir 13
+#define accurateStepperEnable 12
 
 #define stepperEnTrue false  //variable for enabling stepper motor
 #define stepperEnFalse true  //variable for disabling stepper motor
@@ -83,15 +83,13 @@
 
 boolean pulse = 1;
 
-uint8_t State = 0;
-uint8_t Motor = 0;
-int32_t Steps = 0;
-uint16_t Velocity = 0;
+uint8_t State = 9;
+volatile uint8_t Motor = 0;
+volatile int32_t Steps = 0;
+volatile uint16_t Velocity = 0;
 
-boolean moving = 0;
-boolean flag = false;
-
-//uint8_t state = 0;
+boolean moving = false;
+volatile boolean flag = false;
 
 uint8_t prescalerMode = 0x05;
 uint8_t sec_per_rev = 30;  //you pick this
@@ -108,11 +106,11 @@ void setup() {
   Serial.begin(9600);  // open the serial port at 9600 baud
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  uint32_t clockRate = 16000000;
-  uint16_t prescaler = 64;  //determined from prescalerMode
-  uint8_t gearRatio = 14;
-  uint16_t step_per_rev = 40000;  // determined by SW1-4 on closed loop stepper driver
-  int top = (clockRate * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
+  //uint32_t clockRate = 16000000;
+  //uint16_t prescaler = 64;  //determined from prescalerMode
+  //uint8_t gearRatio = 14;
+  //uint16_t step_per_rev = 40000;  // determined by SW1-4 on closed loop stepper driver
+  //int top = (clockRate * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
   //Serial.println(top,DEC);
 
   //going to hopfully use pins 9 (TCCR2B, OC2B) and 10 (TCCR2A, OC2A)
@@ -120,7 +118,7 @@ void setup() {
   pinMode(10, OUTPUT);   //output pin for OCR2A, controlling the top limit
 
   pinMode(Dir, OUTPUT);                   //output pin for controlling the direction of the accurate stepper motor
-  pinMode(accurateStepperEnable, OUTPUT)  //output pi for enabling the accurate stepper motor
+  pinMode(accurateStepperEnable, OUTPUT);  //output pi for enabling the accurate stepper motor
 
       // In the next line of code, we:
       // 1. Set the compare output mode to clear OC2A and OC2B on compare match.
@@ -149,16 +147,16 @@ void setup() {
                      //now that CS02, CS01, CS00  are clear, we write on them a new value:
   //TCCR2B = _BV(WGM22) | _BV(CS21) | _BV(CS20);
   TCCR2B = _BV(WGM22);
-  //TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
+  TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
 
   // OCR2A holds the top value of our counter, so it acts as a divisor to the
   // clock. When our counter reaches this, it resets. Counting starts from 0.
   // Thus 63 equals to 64 divs.
-  OCR2A = 3;
+  OCR2A = 63;
   // This is the duty cycle. Think of it as the last value of the counter our
   // output will remain high for. Can't be greater than OCR2A of course. A
   // value of 0 means a duty cycle of 1/64 in this case.
-  OCR2B = 1;
+  OCR2B = 31;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Pin initialization
@@ -180,16 +178,20 @@ void setup() {
   digitalWrite(Dir, HIGH);                             //default direction
 
   digitalWrite(steppersEnable, stepperEnTrue);  //turns on the stepper motor driver
+
+  Serial.println("Ready for Comand");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:{
 
   if (flag) {
+ //Serial.println("check#1");       //debugging
     if (State == 3) {
       TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
     }
     if (State == 0) {
+       //Serial.println("check#2");       //debugging
       digitalWrite(steppersEnable, stepperEnTrue);
       digitalWrite(accurateStepperEnable, stepperEnTrue);
     }
@@ -200,6 +202,9 @@ void loop() {
         moving = false;
         break;
       case 1:
+       //Serial.println("check#3");       //debugging
+       //Serial.println(Steps);           //debugging
+       //Serial.println(Velocity);        //debugging
         stepperX.move(Steps);
         stepperX.setMaxSpeed(Velocity);
         moving = true;
@@ -211,15 +216,23 @@ void loop() {
         break;
       case 3:
         if (Steps >= 0) {
-          digitalWrite(Dir, LOW)  // default direction
+          digitalWrite(Dir, LOW);  // default direction
         } else {
-          digitalWrite(Dir, HIGH)  // switch direction
+          digitalWrite(Dir, HIGH);  // switch direction
         }
         TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
+
         motor3_count = 0;
         pulse = digitalRead(Pul);
         Steps = abs(Steps);
         moving = true;
+        break;
+        case 4:
+        TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
+        break;
+        case 5:
+                TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
+        break;
       default:
         Serial.println("Catch-all#1");
         moving = false;
@@ -230,29 +243,32 @@ void loop() {
   }
 
   if (moving) {
+    //Serial.println("check#4");       //debugging
     switch (State) {
       case 1:
-        if (!stepX.run()) {
+        //Serial.println("check#5");       //debugging
+        if (!stepperX.run()) {
+          //Serial.println("check#5");       //debugging
           moving = false;
           Serial.println("Ready for Comand");
         }
         break;
       case 2:
-        if (!stepZ.run()) {
+        if (!stepperZ.run()) {
           moving = false;
           Serial.println("Ready for Comand");
         }
         break;
       case 3:
-        if (digitalRead(Pul) != pulse) {
-          pulse = !(pulse);
-          motor3_count++;
-        }
-        if (motor3_count >= Steps) {
-          TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
-          moving = false;
-          Serial.println("Ready for Comand");
-        }
+//        if (digitalRead(Pul) != pulse) {
+//          pulse = digitalRead(Pul);
+//          motor3_count++;
+//        }
+//        if (motor3_count >= Steps) {
+//          TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
+//          moving = false;
+//          Serial.println("Ready for Comand");
+//        }
         break;
       default:
         Serial.println("Catch-all#2");
@@ -267,6 +283,7 @@ void loop() {
   delay response. Multiple bytes of data may be available.
 */
 void serialEvent() {
+ //Serial.println("check#0");       //debugging
   while (Serial.available()) {
     if (Serial.peek() == 'm') {
       Serial.read();
@@ -278,7 +295,7 @@ void serialEvent() {
       Serial.read();
       Velocity = Serial.parseInt();
     } else {
-      Serial.read()
+      Serial.read();
     }
   }
   flag = true;
