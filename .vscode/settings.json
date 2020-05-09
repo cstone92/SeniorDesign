@@ -3,8 +3,13 @@
 
     //"C_Cpp.errorSquiggles": "Disabled",
     "cSpell.words": [
+        "COMPA",
+        "DDRB",
+        "OCIE",
         "OCR2A",
         "OCRA",
-        "TCCR"
+        "TCCR",
+        "TCNT",
+        "TIMSK"
     ]
 }
