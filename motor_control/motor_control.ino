@@ -91,7 +91,12 @@ volatile uint16_t Velocity = 0;
 boolean moving = false;
 volatile boolean flag = false;
 
+<<<<<<< HEAD
 uint8_t prescalerMode = 0x04;
+=======
+uint8_t prescalerMode = 0x05;
+//uint8_t sec_per_rev = 30;  //you pick this
+>>>>>>> ab0dad8c2b29058ef2db94faea6df8a75946e7f9
 
 int32_t motor3_count = 0;
 
@@ -162,7 +167,7 @@ void setup() {
   //now that CS02, CS01, CS00  are clear, we write on them a new value:
   //TCCR2B = _BV(WGM22) | _BV(CS21) | _BV(CS20);
   TCCR2B = _BV(WGM22);
-  TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
+ // TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
 
   // OCR2A holds the top value of our counter, so it acts as a divisor to the
   // clock. When our counter reaches this, it resets. Counting starts from 0.
@@ -241,9 +246,16 @@ void loop() {
         }
         TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
 
+<<<<<<< HEAD
         motor3_count = 0;
         Steps = abs(Steps);
         moving = true;
+=======
+        //motor3_count = 0;
+        //pulse = digitalRead(Pul);
+        //Steps = abs(Steps);
+        //moving = true;
+>>>>>>> ab0dad8c2b29058ef2db94faea6df8a75946e7f9
         break;
       case 4:
         TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
@@ -315,10 +327,17 @@ void serialEvent() {
   flag = true;
 }
 
+<<<<<<< HEAD
 ISR(TIMER2_COMPA_vect) {
   PORTD ^= (1 << 2);
   motor3_count++;
 }
+=======
+//ISR(TIMER2
+
+
+
+>>>>>>> ab0dad8c2b29058ef2db94faea6df8a75946e7f9
 /*
   runToStop runs both the right and left stepper until they stop moving
 */
