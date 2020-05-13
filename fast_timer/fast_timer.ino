@@ -5,8 +5,8 @@ void setup() {
   // put your setup code here, to run once:
 
   
-  pinMode(3, OUTPUT); // output pin for OCR2B, this is Arduino pin number
-  //pinMode(10, OUTPUT);  //output pin for OCR1B, this is Arduino pin number
+  pinMode(9, OUTPUT); // output pin for OCR2B, this is Arduino pin number
+  pinMode(10, OUTPUT);  //output pin for OCR1B, this is Arduino pin number
 
   // In the next line of code, we:
   // 1. Set the compare output mode to clear OC2A and OC2B on compare match.
@@ -29,7 +29,7 @@ void setup() {
  //       0 |     1 |     0 | prescaller = 8
  //       0 |     1 |     1 | prescaller = 32
  //       1 |     0 |     0 | prescaller = 64
-  TCCR2B = _BV(WGM22) | _BV(CS21);
+  TCCR2B = _BV(WGM22) | _BV(CS20);
 
   // OCR2A holds the top value of our counter, so it acts as a divisor to the
   // clock. When our counter reaches this, it resets. Counting starts from 0.

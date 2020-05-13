@@ -69,9 +69,9 @@
 #define dirZPin 7
 #define steppersEnable 8  //stepper enable pin on stepStick
 
-#define Pul 9
-#define Dir 13
-#define accurateStepperEnable 12
+#define Pul 22
+#define Dir 24
+#define accurateStepperEnable 26
 
 #define stepperEnTrue false  //variable for enabling stepper motor
 #define stepperEnFalse true  //variable for disabling stepper motor
@@ -81,22 +81,37 @@
 
 #define accel_default 300  // default acceleration
 
-boolean pulse = 1;
+//boolean pulse = 1;
 
-uint8_t State = 0;
+uint8_t State = 9;
 uint8_t Motor = 0;
 int32_t Steps = 0;
 uint16_t Velocity = 0;
 
-boolean moving = 0;
-boolean flag = false;
+boolean moving = false;
+boolean motorOneMoving = false;
+boolean motorTwoMoving = false;
+boolean motorThreeMoving = false;
+volatile boolean flag = false;
 
-//uint8_t state = 0;
+//   CS22  | CS21  | CS20  |  DEC |Description
+//       0 |     0 |     0 |   0  |stop timer
+//       0 |     0 |     1 |   1  |prescaler = 1 (no prescaller)
+//       0 |     1 |     0 |   2  |prescaler = 8
+//       0 |     1 |     1 |   3  |prescaler = 64
+//       1 |     0 |     0 |   4  |prescaler = 256
+//       1 |     0 |     1 |   5  |prescaler = 1024
+uint8_t prescalerMode = 0x04;
 
-uint8_t prescalerMode = 0x05;
-uint8_t sec_per_rev = 30;  //you pick this
+// counter and compare values
+const uint16_t t1_load = 0;
+const uint16_t t1_comp = 3;
 
-int32_t motor3_count = 0;
+boolean pulse = false;
+boolean stepFlag = false;
+
+volatile int32_t motor3_count = 0;
+uint32_t motor3_steps = 0;
 
 // Stepper Setup
 AccelStepper stepperX(AccelStepper::DRIVER, stepXPin, dirXPin);  //create instance of right stepper motor object (2 driver pins, low to high transition step pin 52, direction input pin 53 (high means forward)
@@ -108,57 +123,33 @@ void setup() {
   Serial.begin(9600);  // open the serial port at 9600 baud
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //uint32_t clockRate = 16000000;
-  //uint16_t prescaler = 64;  //determined from prescalerMode
-  //uint8_t gearRatio = 14;
-  //uint16_t step_per_rev = 40000;  // determined by SW1-4 on closed loop stepper driver
-  //int top = (clockRate * sec_per_rev) / (step_per_rev * gearRatio * prescaler);
-  //Serial.println(top,DEC);
 
   //going to hopfully use pins 9 (TCCR2B, OC2B) and 10 (TCCR2A, OC2A)
   pinMode(Pul, OUTPUT);  //output pin for OCR2B, this is Arduino pin number
-  pinMode(10, OUTPUT);   //output pin for OCR2A, controlling the top limit
-
   pinMode(Dir, OUTPUT);                   //output pin for controlling the direction of the accurate stepper motor
   pinMode(accurateStepperEnable, OUTPUT);  //output pi for enabling the accurate stepper motor
 
-      // In the next line of code, we:
-      // 1. Set the compare output mode to clear OC2A and OC2B on compare match.
-      //    To achieve this, we set bits COM2A1 and COM2B1 to high.
-      // 2. Set the waveform generation mode to fast PWM (mode 3 in datasheet).
-      //    To achieve this, we set bits WGM21 and WGM20 to high.
-      TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+  // Reset Timer1 Control Reg A
+  TCCR5A = 0;
 
-  // In the next line of code, we:
-  // 1. Set the waveform generation mode to fast PWM mode 7 —reset counter on
-  //    OCR2A value instead of the default 255. To achieve this, we set bit
-  //    WGM22 to high.
-  // 2. Set the prescaler divisor to 1, so that our counter will be fed with
-  //    the clock's full frequency (16MHz). To achieve this, we set CS20 to
-  //    high (and keep CS21 and CS22 to low by not setting them).
-  //
-  //   CS22  | CS21  | CS20  |  DEC |Description
-  //       0 |     0 |     0 |   0  |stop timer
-  //       0 |     0 |     1 |   1  |prescaler = 1 (no prescaller)
-  //       0 |     1 |     0 |   2  |prescaler = 8
-  //       0 |     1 |     1 |   3  |prescaler = 64
-  //       1 |     0 |     0 |   4  |prescaler = 256
-  //       1 |     0 |     1 |   5  |prescaler = 1024
+  // set waveform generation mode WGM
+  TCCR5B &= ~(1 << WGM53); //clears
+  TCCR5B &= ~(1 << WGM52); //clears
+  TCCR5B &= ~(1 << WGM51); //clears
+  TCCR5B &= ~(1 << WGM50); //clears
+  TCCR5B |= (1 << WGM52); //sets
 
-  TCCR2B &= ~0b111;  // this operation (AND plus NOT),  set the three bits in TCCR2B to 0 (clears prescaler)
-                     //now that CS02, CS01, CS00  are clear, we write on them a new value:
-  //TCCR2B = _BV(WGM22) | _BV(CS21) | _BV(CS20);
-  TCCR2B = _BV(WGM22);
-  //TCCR2B = (TCCR2B & 0b11111000) | (prescalerMode);
+  TCCR5B &= ~0b111;  // this operation (AND plus NOT),  set the three bits in TCCR2B to 0 (clears prescaler)
 
-  // OCR2A holds the top value of our counter, so it acts as a divisor to the
-  // clock. When our counter reaches this, it resets. Counting starts from 0.
-  // Thus 63 equals to 64 divs.
-  OCR2A = 3;
-  // This is the duty cycle. Think of it as the last value of the counter our
-  // output will remain high for. Can't be greater than OCR2A of course. A
-  // value of 0 means a duty cycle of 1/64 in this case.
-  OCR2B = 1;
+  // Reset Timer1 and set compare values
+  TCNT5 = t1_load;
+  OCR5A = t1_comp;
+
+  // Enable timer1 compare interrupt
+  TIMSK5 = (1 << OCIE5A);
+
+  // Enable global interrupts
+  sei();
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Pin initialization
@@ -188,9 +179,6 @@ void loop() {
   // put your main code here, to run repeatedly:{
 
   if (flag) {
-    if (State == 3) {
-      TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
-    }
     if (State == 0) {
       digitalWrite(steppersEnable, stepperEnTrue);
       digitalWrite(accurateStepperEnable, stepperEnTrue);
@@ -204,12 +192,12 @@ void loop() {
       case 1:
         stepperX.move(Steps);
         stepperX.setMaxSpeed(Velocity);
-        moving = true;
+        motorOneMoving = true;
         break;
       case 2:
         stepperZ.move(Steps);
         stepperZ.setMaxSpeed(Velocity);
-        moving = true;
+        motorTwoMoving = true;
         break;
       case 3:
         if (Steps >= 0) {
@@ -217,10 +205,11 @@ void loop() {
         } else {
           digitalWrite(Dir, HIGH);  // switch direction
         }
-        TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
+        TCCR5B = (TCCR5B & 0b11111000) | prescalerMode;
         motor3_count = 0;
-        Steps = abs(Steps);
-        moving = true;
+        motor3_steps = abs(Steps);
+        motorThreeMoving = true;
+        break;
       default:
         Serial.println("Catch-all#1");
         moving = false;
@@ -230,34 +219,28 @@ void loop() {
     flag = false;
   }
 
-  if (moving) {
-    switch (State) {
-      case 1:
-        if (!stepperX.run()) {
-          moving = false;
-          Serial.println("Ready for Comand");
-        }
-        break;
-      case 2:
-        if (!stepperZ.run()) {
-          moving = false;
-          Serial.println("Ready for Comand");
-        }
-        break;
-      case 3:
-        if (digitalRead(Pul) != pulse) {
-          pulse = !(pulse);
-          motor3_count++;
-        }
-        if (motor3_count >= Steps) {
-          TCCR2B = (TCCR2B & 0b11111000) & ~(prescalerMode);
-          moving = false;
-          Serial.println("Ready for Comand");
-        }
-        break;
-      default:
-        Serial.println("Catch-all#2");
-        break;
+  if (motorOneMoving) {
+    if (!stepperX.run()) {
+      motorOneMoving = false;
+      Serial.println("Ready for Comand");
+    }
+  }
+
+  if (motorTwoMoving) {
+    if (!stepperZ.run()) {
+      motorTwoMoving = false;
+      Serial.println("Ready for Comand");
+    }
+  }
+
+  if (motorThreeMoving) {
+    if (stepFlag){
+        digitalWrite(Pul, pulse);
+    }
+    if (motor3_count >= motor3_steps) {
+      TCCR5B = (TCCR5B & 0b11111000) & ~(prescalerMode);
+      motorThreeMoving = false;
+      Serial.println("Ready for Comand");
     }
   }
 }
@@ -285,31 +268,10 @@ void serialEvent() {
   flag = true;
 }
 
-ISR(TIMER2_COMPA_vect) {
-  PORTD ^= (1 << 2);
-  motor3_count++;
+ISR(TIMER5_COMPA_vect) {
+  pulse = !(pulse);
+  stepFlag = true;
+  if (pulse) {
+    motor3_count++;
+  }
 }
-/*
-  runToStop runs both the right and left stepper until they stop moving
-*/
-// void runXToStop(void) {
-//   boolean runX = 1;  //state variabels
-//   moving = 1;
-//   while (runX && !(Serial.available())) {  //until both stop
-//     if (!stepperX.run()) {                 //step the right stepper, if it is done moving set runR = 0
-//       runX = 0;                            //right done moving
-//     }
-//   }
-//   moving = 0;
-// }
-
-// void runZToStop(void) {
-//   boolean runZ = 1;  //state variables
-//   moving = 1;
-//   while (runZ && !(Serial.available())) {  //until both stop
-//     if (!stepperZ.run()) {                 //step the left stepper, if it is done moving set runL = 0
-//       runZ = 0;                            //left done moving
-//     }
-//   }
-//   moving = 0;
-// }
