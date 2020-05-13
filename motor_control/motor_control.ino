@@ -219,7 +219,6 @@ void loop() {
         }
         TCCR2B = (TCCR2B & 0b11111000) | prescalerMode;
         motor3_count = 0;
-        pulse = digitalRead(Pul);
         Steps = abs(Steps);
         moving = true;
       default:
@@ -286,17 +285,10 @@ void serialEvent() {
   flag = true;
 }
 
-<<<<<<< HEAD
 ISR(TIMER2_COMPA_vect) {
   PORTD ^= (1 << 2);
   motor3_count++;
 }
-=======
-//ISR(TIMER2
-
-
-
->>>>>>> ab0dad8c2b29058ef2db94faea6df8a75946e7f9
 /*
   runToStop runs both the right and left stepper until they stop moving
 */
