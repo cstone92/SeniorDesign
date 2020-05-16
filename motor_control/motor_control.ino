@@ -101,14 +101,12 @@ volatile boolean flag = false;
 //       0 |     1 |     1 |   3  |prescaler = 64
 //       1 |     0 |     0 |   4  |prescaler = 256
 //       1 |     0 |     1 |   5  |prescaler = 1024
-uint8_t prescalerMode = 0x04;
+uint8_t prescalerMode = 0x05;
 
 // counter and compare values
 const uint16_t t1_load = 0;
 const uint16_t t1_comp = 3;
-
-boolean pulse = false;
-boolean stepFlag = false;
+const uint16_t t1_mid = 1;
 
 volatile int32_t motor3_count = 0;
 uint32_t motor3_steps = 0;
@@ -129,21 +127,28 @@ void setup() {
   pinMode(Dir, OUTPUT);                   //output pin for controlling the direction of the accurate stepper motor
   pinMode(accurateStepperEnable, OUTPUT);  //output pi for enabling the accurate stepper motor
 
+  pinMode(45, OUTPUT);    //OC5B
+  pinMode(46, OUTPUT);    //OC5A
+
   // Reset Timer1 Control Reg A
-  TCCR5A = 0;
+  //TCCR5A = 0;
 
   // set waveform generation mode WGM
-  TCCR5B &= ~(1 << WGM53); //clears
-  TCCR5B &= ~(1 << WGM52); //clears
-  TCCR5B &= ~(1 << WGM51); //clears
-  TCCR5B &= ~(1 << WGM50); //clears
-  TCCR5B |= (1 << WGM52); //sets
+  //  TCCR5B &= ~(1 << WGM53); //clears
+  //  TCCR5B &= ~(1 << WGM52); //clears
+  //  TCCR5B &= ~(1 << WGM51); //clears
+  // TCCR5B &= ~(1 << WGM50); //clears
+    TCCR5B |= (1 << WGM50); //sets
+    TCCR5B |= (1 << WGM51); //sets
+    TCCR5B |= (1 << WGM52); //sets
+    TCCR5B |= (1 << WGM53); //sets
 
   TCCR5B &= ~0b111;  // this operation (AND plus NOT),  set the three bits in TCCR2B to 0 (clears prescaler)
 
+  TCCR5A = _BV(COM5B1) |_BV(WGM53) | _BV(WGM52) | _BV(WGM51) | _BV(WGM50);
   // Reset Timer1 and set compare values
-  TCNT5 = t1_load;
   OCR5A = t1_comp;
+  OCR5B = t1_mid;
 
   // Enable timer1 compare interrupt
   TIMSK5 = (1 << OCIE5A);
@@ -234,9 +239,6 @@ void loop() {
   }
 
   if (motorThreeMoving) {
-    if (stepFlag){
-        digitalWrite(Pul, pulse);
-    }
     if (motor3_count >= motor3_steps) {
       TCCR5B = (TCCR5B & 0b11111000) & ~(prescalerMode);
       motorThreeMoving = false;
@@ -269,9 +271,5 @@ void serialEvent() {
 }
 
 ISR(TIMER5_COMPA_vect) {
-  pulse = !(pulse);
-  stepFlag = true;
-  if (pulse) {
-    motor3_count++;
-  }
+  motor3_count++;
 }
