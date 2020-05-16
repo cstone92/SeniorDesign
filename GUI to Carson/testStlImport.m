@@ -6,28 +6,28 @@ close all
 view(gca, [0,5 0]);
 axis(gca, [-100 825 -200 200 -70 500]);
 
-link0Patch = makeStlLink('link0.stl', gca, [1, 0.5, 0]);
+link0Patch = makeStlLink('Link0.STL', gca, [1, 0.5, 0]);
 link0Vertices = get(link0Patch, 'Vertices')';
 link0Vertices(4,:) = ones(1, size(link0Vertices,2));
 
-phantomPatch = makeStlLink('phantom.stl', gca, [.9, .75, .6]);
+phantomPatch = makeStlLink('phantom.STL', gca, [.9, .75, .6]);
 phantomVertices = get(phantomPatch, 'Vertices')';
 phantomVertices(4,:) = ones(1, size(phantomVertices,2));
 phantomPatch.EdgeColor = 'none';
 
-link1Patch = makeStlLink('link1.stl', gca, [1, 0, 0]);
+link1Patch = makeStlLink('Link1.STL', gca, [1, 0, 0]);
 link1Vertices = get(link1Patch, 'Vertices')';
 link1Vertices(4,:) = ones(1, size(link1Vertices,2));
 
-link2Patch = makeStlLink('link2.stl', gca, [0, 0, 1]);
+link2Patch = makeStlLink('Link2.STL', gca, [0, 0, 1]);
 link2Vertices = get(link2Patch, 'Vertices')';
 link2Vertices(4,:) = ones(1, size(link2Vertices,2));
 
-link3Patch = makeStlLink('link3.stl', gca, [1, 1, 0]);
+link3Patch = makeStlLink('Link3.STL', gca, [1, 1, 0]);
 link3Vertices = get(link3Patch, 'Vertices')';
 link3Vertices(4,:) = ones(1, size(link3Vertices,2));
 
-link4Patch = makeStlLink('link4.stl', gca, [1, 1, 0]);
+link4Patch = makeStlLink('Link4.STL', gca, [1, 1, 0]);
 link4Vertices = get(link4Patch, 'Vertices')';
 link4Vertices(4,:) = ones(1, size(link4Vertices,2));
 

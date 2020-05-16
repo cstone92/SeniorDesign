@@ -79,7 +79,7 @@
 // // Stepper Library Default Speeds
 //#define speedD 1000  // default speed
 
-#define accel_default 300  // default acceleration
+#define accel_default 800  // default acceleration
 
 //boolean pulse = 1;
 
